@@ -161,6 +161,15 @@ class ChatScreen(Screen):
         width: auto;
         dock: right;
         text-align: right;
+        margin-right: 2;
+    }
+
+    #encryption-indicator {
+        width: auto;
+        dock: right;
+        text-align: right;
+        color: $success;
+        text-style: bold;
     }
 
     #status-bar {
@@ -234,6 +243,7 @@ class ChatScreen(Screen):
         with Container(id="chat-header"):
             with Horizontal(id="header-content"):
                 yield Label(f"Terminal Chat - {self.username}", id="app-title")
+                yield Label("🔒 E2EE", id="encryption-indicator")
                 yield Label("Online: 0", id="online-users")
 
         # Status bar

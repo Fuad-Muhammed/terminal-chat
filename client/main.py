@@ -8,6 +8,7 @@ import os
 from typing import Dict, Any
 from .ui import ChatApp, ChatScreen
 from .connection import ChatConnection
+from shared.crypto import get_or_create_encryption
 
 
 class ChatClient:
@@ -21,6 +22,9 @@ class ChatClient:
         self.user_id: int = None
         self.username: str = None
         self.token: str = None
+
+        # Initialize encryption
+        self.encryption = get_or_create_encryption()
 
         # Set up callbacks
         self.app.set_login_callback(self.handle_login_sync)
@@ -79,6 +83,14 @@ class ChatClient:
             # Connect
             await self.connection.connect()
 
+            # Show encryption info
+            chat_screen = self.app.get_chat_screen()
+            if chat_screen:
+                from pathlib import Path
+                key_path = Path.home() / ".terminal-chat" / "encryption.key"
+                chat_screen.add_system_message(f"🔒 End-to-end encryption enabled")
+                chat_screen.add_system_message(f"Key: {key_path}")
+
         except Exception as e:
             chat_screen = self.app.get_chat_screen()
             if chat_screen:
@@ -97,9 +109,16 @@ class ChatClient:
                         chat_screen = self.app.get_chat_screen()
                         if chat_screen:
                             for msg in messages:
+                                # Decrypt message content
+                                encrypted_content = msg.get("content")
+                                try:
+                                    content = self.encryption.decrypt(encrypted_content)
+                                except Exception as e:
+                                    content = f"[Decryption failed]"
+
                                 chat_screen.add_message(
                                     msg.get("username"),
-                                    msg.get("content"),
+                                    content,
                                     msg.get("timestamp")
                                 )
 
@@ -117,10 +136,17 @@ class ChatClient:
             return
 
         if message_type == "message":
-            # Regular chat message
+            # Regular chat message - decrypt content
             username = message_data.get("username", "Unknown")
-            content = message_data.get("content", "")
+            encrypted_content = message_data.get("content", "")
             timestamp = message_data.get("timestamp")
+
+            # Decrypt the message
+            try:
+                content = self.encryption.decrypt(encrypted_content)
+            except Exception as e:
+                content = f"[Decryption failed: {str(e)}]"
+
             chat_screen.add_message(username, content, timestamp)
 
         elif message_type == "user_joined":
@@ -164,7 +190,9 @@ class ChatClient:
         """Handle sending a message"""
         if self.connection and self.connection.connected:
             try:
-                await self.connection.send_message(message)
+                # Encrypt message before sending
+                encrypted_message = self.encryption.encrypt(message)
+                await self.connection.send_message(encrypted_message)
             except Exception as e:
                 chat_screen = self.app.get_chat_screen()
                 if chat_screen:
@@ -173,9 +201,10 @@ class ChatClient:
             chat_screen = self.app.get_chat_screen()
             if chat_screen:
                 chat_screen.add_system_message("Not connected - message queued")
-                # Still try to queue the message
+                # Still try to queue the message (encrypt it first)
                 if self.connection:
-                    await self.connection.send_message(message)
+                    encrypted_message = self.encryption.encrypt(message)
+                    await self.connection.send_message(encrypted_message)
 
     async def shutdown(self):
         """Clean shutdown"""
