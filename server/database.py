@@ -6,6 +6,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Database URL - defaults to SQLite for development
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./terminal_chat.db")

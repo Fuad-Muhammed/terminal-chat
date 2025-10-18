@@ -56,14 +56,14 @@ asyncio
 - [x] Initialize git repository
 - [x] Create .gitignore (venv/, __pycache__/, .env, *.db)
 
-## Phase 2: Server Core (4-5 hours)
+## Phase 2: Server Core (4-5 hours) ✅ COMPLETED
 
 ### WebSocket Server
-- [ ] Set up FastAPI application with WebSocket endpoint
-- [ ] Create ConnectionManager class to handle active connections
-- [ ] Implement connection lifecycle (connect, disconnect, send)
-- [ ] Add basic message broadcasting to all connected clients
-- [ ] Implement heartbeat/ping-pong for connection health
+- [x] Set up FastAPI application with WebSocket endpoint
+- [x] Create ConnectionManager class to handle active connections
+- [x] Implement connection lifecycle (connect, disconnect, send)
+- [x] Add basic message broadcasting to all connected clients
+- [x] Implement heartbeat/ping-pong for connection health
 
 ### Database Schema
 ```sql
@@ -83,10 +83,10 @@ Messages:
 ```
 
 ### Authentication
-- [ ] Create user registration endpoint
-- [ ] Implement login with JWT token generation
-- [ ] Add token validation middleware
-- [ ] Password hashing with bcrypt
+- [x] Create user registration endpoint
+- [x] Implement login with JWT token generation
+- [x] Add token validation middleware
+- [x] Password hashing with bcrypt
 
 ### API Endpoints
 ```
