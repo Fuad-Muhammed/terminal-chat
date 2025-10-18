@@ -1,0 +1,27 @@
+# Web Framework & Server
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# WebSocket Support
+websockets==12.0
+
+# Terminal UI
+textual==0.44.1
+
+# Database ORM
+sqlalchemy==2.0.23
+
+# Encryption
+cryptography==41.0.7
+
+# JWT Authentication
+python-jose[cryptography]==3.3.0
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# Password Hashing
+passlib[bcrypt]==1.7.4
+
+# ASGI Server
+python-multipart==0.0.6
