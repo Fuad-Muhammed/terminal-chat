@@ -20,8 +20,8 @@ python-jose[cryptography]==3.3.0
 # Environment Variables
 python-dotenv==1.0.0
 
-# Password Hashing
-passlib[bcrypt]==1.7.4
-
 # ASGI Server
 python-multipart==0.0.6
+
+# HTTP Client (for client app)
+aiohttp==3.9.1

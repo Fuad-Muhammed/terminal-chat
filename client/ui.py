@@ -3,47 +3,217 @@ Textual UI components for the terminal chat client
 """
 
 from textual.app import App, ComposeResult
-from textual.containers import Container, Vertical, Horizontal
-from textual.widgets import Header, Footer, Input, Static, Button
+from textual.containers import Container, Vertical, Horizontal, ScrollableContainer
+from textual.widgets import Header, Footer, Input, Static, Button, Label
 from textual.binding import Binding
+from textual.screen import Screen
+from datetime import datetime
+from typing import Optional, Callable
 
 
-class MessageDisplay(Static):
-    """Widget to display chat messages"""
-
-    def __init__(self):
-        super().__init__()
-        self.messages = []
-
-    def add_message(self, username: str, message: str, timestamp: str = ""):
-        """Add a message to the display"""
-        self.messages.append(f"[{timestamp}] {username}: {message}")
-        self.update("\n".join(self.messages))
-
-
-class ChatApp(App):
-    """Main chat application"""
+class LoginScreen(Screen):
+    """Login and registration screen"""
 
     CSS = """
-    Screen {
+    LoginScreen {
+        align: center middle;
         background: $surface;
+    }
+
+    #login-container {
+        width: 60;
+        height: auto;
+        border: thick $primary;
+        background: $panel;
+        padding: 2;
+    }
+
+    #login-title {
+        width: 100%;
+        text-align: center;
+        text-style: bold;
+        color: $accent;
+        padding: 1;
+    }
+
+    .login-label {
+        width: 100%;
+        padding: 1 0;
+    }
+
+    .login-input {
+        width: 100%;
+        margin-bottom: 1;
+    }
+
+    #button-container {
+        width: 100%;
+        height: auto;
+        layout: horizontal;
+        padding: 1 0;
+    }
+
+    Button {
+        width: 1fr;
+        margin: 0 1;
+    }
+
+    #status-label {
+        width: 100%;
+        text-align: center;
+        color: $warning;
+        padding: 1 0;
+        height: 3;
+    }
+    """
+
+    def __init__(self, on_login: Callable):
+        super().__init__()
+        self.on_login = on_login
+
+    def compose(self) -> ComposeResult:
+        """Compose the login screen"""
+        with Container(id="login-container"):
+            yield Label("Terminal Chat", id="login-title")
+            yield Label("Username:", classes="login-label")
+            yield Input(
+                placeholder="Enter username (min 3 chars)",
+                id="username-input",
+                classes="login-input"
+            )
+            yield Label("Password:", classes="login-label")
+            yield Input(
+                placeholder="Enter password (min 6 chars)",
+                password=True,
+                id="password-input",
+                classes="login-input"
+            )
+            with Horizontal(id="button-container"):
+                yield Button("Login", variant="primary", id="login-btn")
+                yield Button("Register", variant="success", id="register-btn")
+            yield Label("", id="status-label")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button presses"""
+        username_input = self.query_one("#username-input", Input)
+        password_input = self.query_one("#password-input", Input)
+        status_label = self.query_one("#status-label", Label)
+
+        username = username_input.value.strip()
+        password = password_input.value.strip()
+
+        # Validation
+        if len(username) < 3:
+            status_label.update("Username must be at least 3 characters")
+            return
+
+        if len(password) < 6:
+            status_label.update("Password must be at least 6 characters")
+            return
+
+        # Determine action
+        if event.button.id == "login-btn":
+            action = "login"
+        elif event.button.id == "register-btn":
+            action = "register"
+        else:
+            return
+
+        status_label.update(f"{action.capitalize()}ing...")
+
+        # Call the login callback
+        self.on_login(username, password, action)
+
+    def show_error(self, message: str):
+        """Show error message"""
+        status_label = self.query_one("#status-label", Label)
+        status_label.update(f"Error: {message}")
+
+
+class ChatScreen(Screen):
+    """Main chat interface"""
+
+    CSS = """
+    ChatScreen {
+        background: $surface;
+    }
+
+    #chat-header {
+        dock: top;
+        height: 3;
+        background: $primary;
+        color: $text;
+        padding: 1 2;
+    }
+
+    #header-content {
+        layout: horizontal;
+        width: 100%;
+        height: 100%;
+    }
+
+    #app-title {
+        width: auto;
+        text-style: bold;
+    }
+
+    #online-users {
+        width: auto;
+        dock: right;
+        text-align: right;
+    }
+
+    #status-bar {
+        dock: top;
+        height: 1;
+        background: $accent;
+        color: $text;
+        padding: 0 2;
     }
 
     #message-container {
         height: 1fr;
         border: solid $primary;
+        background: $surface;
+        margin: 1;
+    }
+
+    #message-display {
         padding: 1;
-        overflow-y: scroll;
+        height: auto;
     }
 
     #input-container {
-        height: auto;
         dock: bottom;
-        padding: 1;
+        height: 3;
+        background: $panel;
+        padding: 0 2;
     }
 
     Input {
         width: 100%;
+    }
+
+    .message-line {
+        padding: 0 0 0 1;
+    }
+
+    .message-timestamp {
+        color: $text-muted;
+    }
+
+    .message-username {
+        color: $accent;
+        text-style: bold;
+    }
+
+    .message-content {
+        color: $text;
+    }
+
+    .system-message {
+        color: $warning;
+        text-style: italic;
     }
     """
 
@@ -52,28 +222,166 @@ class ChatApp(App):
         Binding("ctrl+q", "quit", "Quit"),
     ]
 
+    def __init__(self, username: str, on_send_message: Callable):
+        super().__init__()
+        self.username = username
+        self.on_send_message = on_send_message
+        self.online_users_count = 0
+
     def compose(self) -> ComposeResult:
-        """Compose the UI"""
-        yield Header()
-        yield Container(
-            MessageDisplay(id="message-display"),
-            id="message-container"
-        )
-        yield Container(
-            Input(placeholder="Type a message...", id="message-input"),
-            id="input-container"
-        )
-        yield Footer()
+        """Compose the chat screen"""
+        # Header
+        with Container(id="chat-header"):
+            with Horizontal(id="header-content"):
+                yield Label(f"Terminal Chat - {self.username}", id="app-title")
+                yield Label("Online: 0", id="online-users")
+
+        # Status bar
+        yield Label("Connecting...", id="status-bar")
+
+        # Message display area
+        with ScrollableContainer(id="message-container"):
+            yield Static("", id="message-display")
+
+        # Input area
+        with Container(id="input-container"):
+            yield Input(placeholder="Type a message and press Enter...", id="message-input")
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle message submission"""
-        message = event.value
-        if message.strip():
-            # TODO: Send message to server via WebSocket
-            message_display = self.query_one("#message-display", MessageDisplay)
-            message_display.add_message("You", message)
+        message = event.value.strip()
+        if message:
+            # Send message via callback
+            self.on_send_message(message)
             event.input.value = ""
+
+    def add_message(self, username: str, content: str, timestamp: str = None):
+        """Add a chat message to the display"""
+        message_display = self.query_one("#message-display", Static)
+
+        # Format timestamp
+        if timestamp:
+            try:
+                dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                time_str = dt.strftime("%H:%M:%S")
+            except Exception:
+                time_str = timestamp[:8] if len(timestamp) >= 8 else ""
+        else:
+            time_str = datetime.now().strftime("%H:%M:%S")
+
+        # Format message
+        current_text = message_display.renderable
+        if current_text:
+            current_text = str(current_text)
+        else:
+            current_text = ""
+
+        new_message = f"[{time_str}] {username}: {content}"
+
+        if current_text:
+            updated_text = current_text + "\n" + new_message
+        else:
+            updated_text = new_message
+
+        message_display.update(updated_text)
+
+        # Auto-scroll to bottom
+        container = self.query_one("#message-container", ScrollableContainer)
+        container.scroll_end(animate=False)
+
+    def add_system_message(self, message: str):
+        """Add a system message (user joined, left, etc.)"""
+        message_display = self.query_one("#message-display", Static)
+
+        current_text = message_display.renderable
+        if current_text:
+            current_text = str(current_text)
+        else:
+            current_text = ""
+
+        time_str = datetime.now().strftime("%H:%M:%S")
+        new_message = f"[{time_str}] * {message}"
+
+        if current_text:
+            updated_text = current_text + "\n" + new_message
+        else:
+            updated_text = new_message
+
+        message_display.update(updated_text)
+
+        # Auto-scroll to bottom
+        container = self.query_one("#message-container", ScrollableContainer)
+        container.scroll_end(animate=False)
+
+    def update_status(self, status: str):
+        """Update the status bar"""
+        status_bar = self.query_one("#status-bar", Label)
+        status_bar.update(status)
+
+    def update_online_users(self, count: int):
+        """Update online users count"""
+        self.online_users_count = count
+        online_label = self.query_one("#online-users", Label)
+        online_label.update(f"Online: {count}")
 
     def action_quit(self) -> None:
         """Quit the application"""
-        self.exit()
+        self.app.exit()
+
+
+class ChatApp(App):
+    """Main chat application"""
+
+    def __init__(self):
+        super().__init__()
+        self.username: Optional[str] = None
+        self.user_id: Optional[int] = None
+        self.token: Optional[str] = None
+        self.send_message_callback: Optional[Callable] = None
+        self.login_callback: Optional[Callable] = None
+
+    def on_mount(self) -> None:
+        """Show login screen on startup"""
+        self.push_screen(LoginScreen(self.handle_login))
+
+    def handle_login(self, username: str, password: str, action: str):
+        """Handle login/register action"""
+        if self.login_callback:
+            self.login_callback(username, password, action)
+
+    def show_chat(self, username: str, user_id: int, token: str):
+        """Switch to chat screen after successful login"""
+        self.username = username
+        self.user_id = user_id
+        self.token = token
+
+        # Remove login screen and show chat
+        self.pop_screen()
+        self.push_screen(ChatScreen(username, self.handle_send_message))
+
+    def handle_send_message(self, message: str):
+        """Handle message sending"""
+        if self.send_message_callback:
+            self.send_message_callback(message)
+
+    def set_login_callback(self, callback: Callable):
+        """Set callback for login/register"""
+        self.login_callback = callback
+
+    def set_send_message_callback(self, callback: Callable):
+        """Set callback for sending messages"""
+        self.send_message_callback = callback
+
+    def get_chat_screen(self) -> Optional[ChatScreen]:
+        """Get the chat screen if it exists"""
+        for screen in self.screen_stack:
+            if isinstance(screen, ChatScreen):
+                return screen
+        return None
+
+    def show_login_error(self, message: str):
+        """Show error on login screen"""
+        for screen in self.screen_stack:
+            if isinstance(screen, LoginScreen):
+                screen.show_error(message)
+                break

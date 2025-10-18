@@ -96,43 +96,43 @@ WS   /ws/{user_id}
 GET  /api/history?limit=100
 ```
 
-## Phase 3: Client Foundation (4-5 hours)
+## Phase 3: Client Foundation (4-5 hours) ✅ COMPLETED
 
 ### Terminal UI Components
-- [ ] Create login/registration screen
-- [ ] Build main chat interface layout:
+- [x] Create login/registration screen
+- [x] Build main chat interface layout:
   - Header (app title, online users)
   - Message display area (scrollable)
   - Input field at bottom
   - Status bar
-- [ ] Implement keyboard navigation
-- [ ] Add color scheme for better readability
+- [x] Implement keyboard navigation
+- [x] Add color scheme for better readability
 
 ### WebSocket Client
-- [ ] Create async WebSocket connection handler
-- [ ] Implement auto-reconnection with exponential backoff
-- [ ] Handle connection status updates
-- [ ] Queue messages when offline, send when reconnected
+- [x] Create async WebSocket connection handler
+- [x] Implement auto-reconnection with exponential backoff
+- [x] Handle connection status updates
+- [x] Queue messages when offline, send when reconnected
 
 ### Message Flow
-- [ ] Send messages from input to server
-- [ ] Receive and display messages in real-time
-- [ ] Show typing indicators (optional)
-- [ ] Display timestamps in human-readable format
+- [x] Send messages from input to server
+- [x] Receive and display messages in real-time
+- [ ] Show typing indicators (optional - skipped)
+- [x] Display timestamps in human-readable format
 
-## Phase 4: Message Persistence (2-3 hours)
+## Phase 4: Message Persistence (2-3 hours) ✅ COMPLETED
 
 ### Server-Side Storage
-- [ ] Save all messages to database on receive
-- [ ] Create message history API endpoint
-- [ ] Implement pagination (load 100 messages at a time)
-- [ ] Add filtering by date range (optional)
+- [x] Save all messages to database on receive
+- [x] Create message history API endpoint
+- [x] Implement pagination (load 100 messages at a time)
+- [ ] Add filtering by date range (optional - skipped)
 
 ### Client-Side History
-- [ ] Load recent messages on connection
-- [ ] Implement scroll-back to load older messages
-- [ ] Cache loaded messages in memory
-- [ ] Show "loading" indicator when fetching history
+- [x] Load recent messages on connection
+- [ ] Implement scroll-back to load older messages (pending)
+- [x] Cache loaded messages in memory
+- [ ] Show "loading" indicator when fetching history (pending)
 
 ## Phase 5: End-to-End Encryption (3-4 hours)
 

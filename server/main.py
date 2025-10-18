@@ -208,13 +208,14 @@ async def websocket_endpoint(
     })
     await manager.broadcast(join_message, exclude_user=str(user_id))
 
-    # Send active users list to new connection
+    # Broadcast updated active users count to ALL users
     active_users = manager.get_active_users()
-    await manager.send_personal_message(json.dumps({
+    active_users_message = json.dumps({
         "type": "active_users",
         "users": active_users,
         "count": len(active_users)
-    }), str(user_id))
+    })
+    await manager.broadcast(active_users_message)
 
     try:
         # Start heartbeat task
@@ -263,6 +264,15 @@ async def websocket_endpoint(
             "timestamp": datetime.utcnow().isoformat()
         })
         await manager.broadcast(leave_message)
+
+        # Broadcast updated active users count to remaining users
+        active_users = manager.get_active_users()
+        active_users_message = json.dumps({
+            "type": "active_users",
+            "users": active_users,
+            "count": len(active_users)
+        })
+        await manager.broadcast(active_users_message)
 
         # Cancel heartbeat task
         heartbeat_task.cancel()
