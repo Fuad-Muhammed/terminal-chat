@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  # Chat Server (with SQLite for development)
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: terminal-chat-server
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:////app/data/terminal_chat.db
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-this-secret-key-in-production}
+      - JWT_ALGORITHM=HS256
+      - JWT_EXPIRATION_HOURS=24
+      - ENVIRONMENT=development
+    volumes:
+      # Mount data directory for SQLite persistence
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  # PostgreSQL Database (for production-like setup)
+  postgres:
+    image: postgres:15-alpine
+    container_name: terminal-chat-postgres
+    environment:
+      - POSTGRES_USER=chatuser
+      - POSTGRES_PASSWORD=chatpassword
+      - POSTGRES_DB=terminal_chat
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chatuser -d terminal_chat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - production
+
+  # Chat Server with PostgreSQL (production-like configuration)
+  server-postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: terminal-chat-server-postgres
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql://chatuser:chatpassword@postgres:5432/terminal_chat
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-this-secret-key-in-production}
+      - JWT_ALGORITHM=HS256
+      - JWT_EXPIRATION_HOURS=24
+      - ENVIRONMENT=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    profiles:
+      - production
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  default:
+    name: terminal-chat-network

@@ -49,6 +49,15 @@ async def root():
     }
 
 
+@app.get("/api/health")
+async def health():
+    """API health check endpoint for monitoring"""
+    return {
+        "status": "healthy",
+        "version": "1.0.0"
+    }
+
+
 @app.post("/api/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserRegister, db: Session = Depends(get_db)):
     """
