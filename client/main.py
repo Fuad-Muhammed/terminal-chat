@@ -8,15 +8,21 @@ import os
 from typing import Dict, Any
 from .ui import ChatApp, ChatScreen
 from .connection import ChatConnection
+from .config import get_config
 from shared.crypto import get_or_create_encryption
 
 
 class ChatClient:
     """Main chat client controller integrated with Textual"""
 
-    def __init__(self):
-        self.server_url = os.getenv("CHAT_SERVER_URL", "http://127.0.0.1:8000").rstrip('/')
+    def __init__(self, server_url: str = None):
+        # Load configuration
+        self.config = get_config()
+
+        # Use provided server_url or config value
+        self.server_url = server_url or self.config.server_url
         self.ws_url = self.server_url.replace('http://', 'ws://').replace('https://', 'wss://')
+
         self.app = ChatApp()
         self.connection: ChatConnection = None
         self.user_id: int = None
@@ -45,31 +51,42 @@ class ChatClient:
                 endpoint = f"{self.server_url}/api/{action}"
                 data = {"username": username, "password": password}
 
-                async with session.post(endpoint, json=data) as response:
-                    if response.status in [200, 201]:
-                        result = await response.json()
-                        self.token = result.get("access_token")
-                        self.user_id = result.get("user_id")
-                        self.username = result.get("username")
+                try:
+                    async with session.post(endpoint, json=data, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                        if response.status in [200, 201]:
+                            result = await response.json()
+                            self.token = result.get("access_token")
+                            self.user_id = result.get("user_id")
+                            self.username = result.get("username")
 
-                        # Switch to chat screen
-                        self.app.show_chat(self.username, self.user_id, self.token)
+                            # Switch to chat screen
+                            self.app.show_chat(self.username, self.user_id, self.token)
 
-                        # Connect to WebSocket
-                        await self.connect_websocket()
+                            # Connect to WebSocket
+                            await self.connect_websocket()
 
-                        # Load message history
-                        await self.load_history()
+                            # Load message history
+                            await self.load_history()
 
-                    else:
-                        error_data = await response.json()
-                        error_msg = error_data.get("detail", "Unknown error")
-                        self.app.show_login_error(error_msg)
+                        else:
+                            try:
+                                error_data = await response.json()
+                                error_msg = error_data.get("detail", f"Server error ({response.status})")
+                            except:
+                                error_msg = f"Server returned status {response.status}"
+                            self.app.show_login_error(error_msg)
+
+                except aiohttp.ClientConnectorError:
+                    self.app.show_login_error(f"Cannot connect to server at {self.server_url}. Is it running?")
+                except aiohttp.ClientResponseError as e:
+                    self.app.show_login_error(f"Server error: {e.status}")
+                except asyncio.TimeoutError:
+                    self.app.show_login_error("Connection timeout. Server is not responding.")
 
         except aiohttp.ClientError as e:
-            self.app.show_login_error(f"Connection error: {str(e)}")
+            self.app.show_login_error(f"Network error: {type(e).__name__}")
         except Exception as e:
-            self.app.show_login_error(f"Error: {str(e)}")
+            self.app.show_login_error(f"Unexpected error: {type(e).__name__}: {str(e)}")
 
     async def connect_websocket(self):
         """Connect to WebSocket server"""
@@ -88,26 +105,46 @@ class ChatClient:
             if chat_screen:
                 from pathlib import Path
                 key_path = Path.home() / ".terminal-chat" / "encryption.key"
-                chat_screen.add_system_message(f"🔒 End-to-end encryption enabled")
-                chat_screen.add_system_message(f"Key: {key_path}")
+                chat_screen.add_system_message("End-to-end encryption enabled")
+                chat_screen.add_system_message(f"Key location: {key_path}")
 
+        except ConnectionRefusedError:
+            chat_screen = self.app.get_chat_screen()
+            if chat_screen:
+                chat_screen.update_status("Connection refused - is the server running?")
+                chat_screen.add_system_message("Cannot connect to server. Please check if the server is running.")
+        except TimeoutError:
+            chat_screen = self.app.get_chat_screen()
+            if chat_screen:
+                chat_screen.update_status("Connection timeout")
+                chat_screen.add_system_message("Connection timed out. Will retry automatically...")
         except Exception as e:
             chat_screen = self.app.get_chat_screen()
             if chat_screen:
-                chat_screen.update_status(f"Connection error: {str(e)}")
+                chat_screen.update_status(f"Connection error")
+                chat_screen.add_system_message(f"Failed to connect: {str(e)}")
 
     async def load_history(self):
         """Load message history from server"""
+        chat_screen = self.app.get_chat_screen()
+
         try:
+            # Show loading indicator
+            if chat_screen:
+                chat_screen.update_status("Loading message history...")
+
             async with aiohttp.ClientSession() as session:
-                endpoint = f"{self.server_url}/api/history?limit=50"
+                history_limit = self.config.get('message_history_limit', 50)
+                endpoint = f"{self.server_url}/api/history?limit={history_limit}"
 
                 async with session.get(endpoint) as response:
                     if response.status == 200:
                         messages = await response.json()
 
-                        chat_screen = self.app.get_chat_screen()
                         if chat_screen:
+                            if messages:
+                                chat_screen.add_system_message(f"Loading {len(messages)} messages...")
+
                             for msg in messages:
                                 # Decrypt message content
                                 encrypted_content = msg.get("content")
@@ -116,16 +153,22 @@ class ChatClient:
                                 except Exception as e:
                                     content = f"[Decryption failed]"
 
+                                # Don't play sound for history messages
                                 chat_screen.add_message(
                                     msg.get("username"),
                                     content,
-                                    msg.get("timestamp")
+                                    msg.get("timestamp"),
+                                    play_sound=False
                                 )
 
+                            if messages:
+                                chat_screen.add_system_message("Message history loaded")
+                            chat_screen.update_status("Connected")
+
         except Exception as e:
-            chat_screen = self.app.get_chat_screen()
             if chat_screen:
                 chat_screen.add_system_message(f"Failed to load history: {str(e)}")
+                chat_screen.update_status("Connected (history load failed)")
 
     def handle_incoming_message(self, message_data: Dict[str, Any]):
         """Handle incoming WebSocket messages"""
@@ -164,6 +207,11 @@ class ChatClient:
             count = message_data.get("count", 0)
             chat_screen.update_online_users(count)
 
+        elif message_type == "error":
+            # Error message from server
+            error_message = message_data.get("message", "Unknown error")
+            chat_screen.add_system_message(f"Error: {error_message}")
+
     def handle_status_change(self, status: str):
         """Handle connection status changes"""
         chat_screen = self.app.get_chat_screen()
@@ -188,23 +236,42 @@ class ChatClient:
 
     async def send_message(self, message: str):
         """Handle sending a message"""
-        if self.connection and self.connection.connected:
-            try:
-                # Encrypt message before sending
-                encrypted_message = self.encryption.encrypt(message)
-                await self.connection.send_message(encrypted_message)
-            except Exception as e:
+        try:
+            # Validate message length
+            if len(message) > 5000:
                 chat_screen = self.app.get_chat_screen()
                 if chat_screen:
-                    chat_screen.add_system_message(f"Failed to send: {str(e)}")
-        else:
-            chat_screen = self.app.get_chat_screen()
-            if chat_screen:
-                chat_screen.add_system_message("Not connected - message queued")
-                # Still try to queue the message (encrypt it first)
-                if self.connection:
+                    chat_screen.add_system_message("Message too long (max 5000 characters)")
+                return
+
+            if self.connection and self.connection.connected:
+                try:
+                    # Encrypt message before sending
                     encrypted_message = self.encryption.encrypt(message)
                     await self.connection.send_message(encrypted_message)
+                except Exception as e:
+                    chat_screen = self.app.get_chat_screen()
+                    if chat_screen:
+                        chat_screen.add_system_message(f"Failed to send message - will retry when reconnected")
+                        # Queue the message for retry
+                        if self.connection:
+                            encrypted_message = self.encryption.encrypt(message)
+                            await self.connection.send_message(encrypted_message)
+            else:
+                chat_screen = self.app.get_chat_screen()
+                if chat_screen:
+                    chat_screen.add_system_message("Offline - message queued for sending")
+                    # Still try to queue the message (encrypt it first)
+                    if self.connection:
+                        try:
+                            encrypted_message = self.encryption.encrypt(message)
+                            await self.connection.send_message(encrypted_message)
+                        except Exception as e:
+                            chat_screen.add_system_message(f"Failed to queue message: {str(e)}")
+        except Exception as e:
+            chat_screen = self.app.get_chat_screen()
+            if chat_screen:
+                chat_screen.add_system_message(f"Error: {str(e)}")
 
     async def shutdown(self):
         """Clean shutdown"""
@@ -223,7 +290,47 @@ class ChatClient:
 
 def main():
     """Entry point"""
-    client = ChatClient()
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Terminal Chat Client - A secure end-to-end encrypted chat application"
+    )
+    parser.add_argument(
+        "--server",
+        "-s",
+        type=str,
+        help="Server URL (e.g., http://localhost:8000)",
+        default=None
+    )
+    parser.add_argument(
+        "--config",
+        "-c",
+        action="store_true",
+        help="Show current configuration and exit"
+    )
+    parser.add_argument(
+        "--version",
+        "-v",
+        action="version",
+        version="Terminal Chat Client v1.0.0"
+    )
+
+    args = parser.parse_args()
+
+    # Show config and exit if requested
+    if args.config:
+        from .config import get_config
+        config = get_config()
+        print("Current Configuration:")
+        print(f"  Config file: {config.config_file}")
+        print(f"  Server URL: {config.server_url}")
+        print(f"  Auto-reconnect: {config.get('auto_reconnect')}")
+        print(f"  Notification sound: {config.get('notification_sound')}")
+        print(f"  Message history limit: {config.get('message_history_limit')}")
+        return
+
+    # Create and run client
+    client = ChatClient(server_url=args.server)
     client.run()
 
 

@@ -4,11 +4,13 @@ Textual UI components for the terminal chat client
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, Vertical, Horizontal, ScrollableContainer
-from textual.widgets import Header, Footer, Input, Static, Button, Label
+from textual.widgets import Header, Footer, Input, Static, Button, Label, RichLog
 from textual.binding import Binding
 from textual.screen import Screen
 from datetime import datetime
 from typing import Optional, Callable
+from rich.text import Text
+import hashlib
 
 
 class LoginScreen(Screen):
@@ -107,6 +109,15 @@ class LoginScreen(Screen):
             status_label.update("Username must be at least 3 characters")
             return
 
+        if len(username) > 30:
+            status_label.update("Username must be less than 30 characters")
+            return
+
+        # Check for valid characters
+        if not username.replace('_', '').replace('-', '').isalnum():
+            status_label.update("Username: letters, numbers, _, - only")
+            return
+
         if len(password) < 6:
             status_label.update("Password must be at least 6 characters")
             return
@@ -180,16 +191,12 @@ class ChatScreen(Screen):
         padding: 0 2;
     }
 
-    #message-container {
+    #message-display {
         height: 1fr;
         border: solid $primary;
         background: $surface;
         margin: 1;
-    }
-
-    #message-display {
         padding: 1;
-        height: auto;
     }
 
     #input-container {
@@ -236,6 +243,21 @@ class ChatScreen(Screen):
         self.username = username
         self.on_send_message = on_send_message
         self.online_users_count = 0
+        # User colors for consistent color assignment
+        self.user_colors = {}
+        self.available_colors = [
+            "cyan", "magenta", "yellow", "blue",
+            "green", "bright_cyan", "bright_magenta", "bright_yellow"
+        ]
+
+    def get_user_color(self, username: str) -> str:
+        """Get a consistent color for a username"""
+        if username not in self.user_colors:
+            # Use hash to get consistent color for username
+            hash_value = int(hashlib.md5(username.encode()).hexdigest(), 16)
+            color_index = hash_value % len(self.available_colors)
+            self.user_colors[username] = self.available_colors[color_index]
+        return self.user_colors[username]
 
     def compose(self) -> ComposeResult:
         """Compose the chat screen"""
@@ -250,8 +272,7 @@ class ChatScreen(Screen):
         yield Label("Connecting...", id="status-bar")
 
         # Message display area
-        with ScrollableContainer(id="message-container"):
-            yield Static("", id="message-display")
+        yield RichLog(id="message-display", highlight=True, markup=True, wrap=True)
 
         # Input area
         with Container(id="input-container"):
@@ -261,13 +282,18 @@ class ChatScreen(Screen):
         """Handle message submission"""
         message = event.value.strip()
         if message:
-            # Send message via callback
-            self.on_send_message(message)
-            event.input.value = ""
+            # Check for commands
+            if message.startswith('/'):
+                self.handle_command(message)
+                event.input.value = ""
+            else:
+                # Send message via callback
+                self.on_send_message(message)
+                event.input.value = ""
 
-    def add_message(self, username: str, content: str, timestamp: str = None):
+    def add_message(self, username: str, content: str, timestamp: str = None, play_sound: bool = True):
         """Add a chat message to the display"""
-        message_display = self.query_one("#message-display", Static)
+        message_display = self.query_one("#message-display", RichLog)
 
         # Format timestamp
         if timestamp:
@@ -279,49 +305,32 @@ class ChatScreen(Screen):
         else:
             time_str = datetime.now().strftime("%H:%M:%S")
 
-        # Format message
-        current_text = message_display.renderable
-        if current_text:
-            current_text = str(current_text)
+        # Get user color
+        user_color = self.get_user_color(username)
+
+        # Use different color for own messages
+        if username == self.username:
+            new_message = f"[dim]{time_str}[/dim] [bold white]{username}:[/bold white] {content}"
         else:
-            current_text = ""
+            new_message = f"[dim]{time_str}[/dim] [bold {user_color}]{username}:[/bold {user_color}] {content}"
 
-        new_message = f"[{time_str}] {username}: {content}"
+        # Write the message to RichLog
+        message_display.write(new_message)
 
-        if current_text:
-            updated_text = current_text + "\n" + new_message
-        else:
-            updated_text = new_message
-
-        message_display.update(updated_text)
-
-        # Auto-scroll to bottom
-        container = self.query_one("#message-container", ScrollableContainer)
-        container.scroll_end(animate=False)
+        # Play notification sound for messages from other users
+        if play_sound and username != self.username:
+            self.app.bell()
 
     def add_system_message(self, message: str):
         """Add a system message (user joined, left, etc.)"""
-        message_display = self.query_one("#message-display", Static)
-
-        current_text = message_display.renderable
-        if current_text:
-            current_text = str(current_text)
-        else:
-            current_text = ""
+        message_display = self.query_one("#message-display", RichLog)
 
         time_str = datetime.now().strftime("%H:%M:%S")
-        new_message = f"[{time_str}] * {message}"
+        # Use Rich markup for system messages
+        new_message = f"[dim]{time_str}[/dim] [italic yellow]* {message}[/italic yellow]"
 
-        if current_text:
-            updated_text = current_text + "\n" + new_message
-        else:
-            updated_text = new_message
-
-        message_display.update(updated_text)
-
-        # Auto-scroll to bottom
-        container = self.query_one("#message-container", ScrollableContainer)
-        container.scroll_end(animate=False)
+        # Write the system message to RichLog
+        message_display.write(new_message)
 
     def update_status(self, status: str):
         """Update the status bar"""
@@ -333,6 +342,40 @@ class ChatScreen(Screen):
         self.online_users_count = count
         online_label = self.query_one("#online-users", Label)
         online_label.update(f"Online: {count}")
+
+    def handle_command(self, command: str):
+        """Handle slash commands"""
+        parts = command.split()
+        cmd = parts[0].lower()
+
+        if cmd == "/help":
+            self.show_help()
+        elif cmd == "/quit" or cmd == "/exit":
+            self.app.exit()
+        elif cmd == "/clear":
+            self.clear_messages()
+        else:
+            self.add_system_message(f"Unknown command: {cmd}. Type /help for available commands.")
+
+    def show_help(self):
+        """Show help message with available commands"""
+        help_text = [
+            "Available Commands:",
+            "  /help       - Show this help message",
+            "  /quit       - Exit the application",
+            "  /clear      - Clear message history",
+            "",
+            "Keyboard Shortcuts:",
+            "  Ctrl+C/Q    - Quit application"
+        ]
+        for line in help_text:
+            self.add_system_message(line)
+
+    def clear_messages(self):
+        """Clear the message display"""
+        message_display = self.query_one("#message-display", RichLog)
+        message_display.clear()
+        self.add_system_message("Message history cleared")
 
     def action_quit(self) -> None:
         """Quit the application"""

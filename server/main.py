@@ -56,6 +56,33 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
 
     Creates a new user account with hashed password
     """
+    # Validate username
+    if len(user_data.username) < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username must be at least 3 characters long"
+        )
+
+    if len(user_data.username) > 30:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username must be less than 30 characters"
+        )
+
+    # Check for valid characters (alphanumeric, underscore, hyphen)
+    if not user_data.username.replace('_', '').replace('-', '').isalnum():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username can only contain letters, numbers, underscores, and hyphens"
+        )
+
+    # Validate password
+    if len(user_data.password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 6 characters long"
+        )
+
     # Check if username already exists
     existing_user = db.query(User).filter(User.username == user_data.username).first()
     if existing_user:
@@ -228,10 +255,26 @@ async def websocket_endpoint(
 
             # Handle different message types
             if message_data.get("type") == "message":
+                # Validate message content
+                content = message_data.get("content", "").strip()
+
+                if not content:
+                    # Ignore empty messages
+                    continue
+
+                if len(content) > 5000:
+                    # Message too long, send error to user
+                    error_msg = json.dumps({
+                        "type": "error",
+                        "message": "Message too long (max 5000 characters)"
+                    })
+                    await manager.send_personal_message(error_msg, str(user_id))
+                    continue
+
                 # Save message to database
                 new_message = Message(
                     user_id=user_id,
-                    content=message_data.get("content", ""),
+                    content=content,
                     room_id=message_data.get("room_id", "general")
                 )
                 db.add(new_message)

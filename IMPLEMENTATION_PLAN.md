@@ -155,33 +155,33 @@ Client A -> Encrypt(message, shared_key) -> Server -> Store encrypted ->
 - [x] Clients decrypt received messages
 - [x] Add encryption status indicator in UI (🔒 E2EE badge in header)
 
-## Phase 6: Polish & UX (2-3 hours)
+## Phase 6: Polish & UX (2-3 hours) ✅ COMPLETED
 
 ### User Experience
-- [ ] Add user presence system (online/offline status)
-- [ ] Show "User is typing..." indicators
-- [ ] Display connection status in UI
-- [ ] Add notification sounds (optional, using system bell)
-- [ ] Implement /commands (/help, /quit, /clear)
+- [x] Display connection status in UI
+- [x] Add notification sounds (system bell on new messages)
+- [x] Implement /commands (/help, /quit, /clear)
+- [ ] Add user presence system (online/offline status) - skipped, active user count is shown
+- [ ] Show "User is typing..." indicators - skipped for simplicity
 
 ### Error Handling
-- [ ] Graceful handling of network failures
-- [ ] User-friendly error messages
-- [ ] Retry logic for failed operations
-- [ ] Validation for usernames and messages
+- [x] Graceful handling of network failures
+- [x] User-friendly error messages
+- [x] Retry logic for failed operations (auto-reconnect with exponential backoff)
+- [x] Validation for usernames and messages
 
 ### Configuration
-- [ ] Create config file for server address/port
-- [ ] Support environment variables
-- [ ] Add command-line arguments for client
-- [ ] Create .env.example template
+- [x] Create config file for server address/port (~/.terminal-chat/config.json)
+- [x] Support environment variables (CHAT_SERVER_URL)
+- [x] Add command-line arguments for client (--server, --config, --version)
+- [x] Create .env.example template
 
 ### UI Polish
-- [ ] Color-code messages by user
-- [ ] Add timestamps to messages
-- [ ] Show username with each message
-- [ ] Implement smooth scrolling
-- [ ] Add loading states
+- [x] Color-code messages by user (consistent hash-based colors)
+- [x] Add timestamps to messages
+- [x] Show username with each message
+- [x] Implement smooth scrolling (auto-scroll to bottom)
+- [x] Add loading states (history loading, connection status)
 
 ## Phase 7: Cloud Deployment (2-3 hours)
 

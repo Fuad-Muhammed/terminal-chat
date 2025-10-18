@@ -170,6 +170,11 @@ class ChatConnection:
             if self.message_callback:
                 self.message_callback(message_data)
 
+        elif message_type == "error":
+            # Error message from server
+            if self.message_callback:
+                self.message_callback(message_data)
+
     async def handle_reconnect(self):
         """Handle reconnection with exponential backoff"""
         if not self.running:
