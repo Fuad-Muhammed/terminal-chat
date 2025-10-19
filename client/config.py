@@ -12,7 +12,7 @@ class ClientConfig:
     """Manages client configuration"""
 
     DEFAULT_CONFIG = {
-        "server_url": "http://127.0.0.1:8000",
+        "server_url": "https://terminal-chat.fuadmuhammed.com",
         "auto_reconnect": True,
         "reconnect_delay": 1,
         "max_reconnect_delay": 60,
