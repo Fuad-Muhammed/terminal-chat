@@ -308,6 +308,15 @@ async def websocket_endpoint(
                 # Heartbeat response - connection is alive
                 pass
 
+            elif message_data.get("type") == "typing":
+                # Typing indicator - broadcast to other users
+                is_typing = message_data.get("is_typing", False)
+                await manager.broadcast_typing_indicator(
+                    str(user_id),
+                    user.username,
+                    is_typing
+                )
+
     except WebSocketDisconnect:
         # Remove connection and broadcast user left
         manager.disconnect(str(user_id))

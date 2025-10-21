@@ -29,10 +29,20 @@ class ConnectionManager:
 
     async def broadcast(self, message: str, exclude_user: str = None):
         """Broadcast a message to all connected clients"""
-        for user_id, connection in self.active_connections.items():
+        # Create a copy of items to avoid RuntimeError during iteration
+        for user_id, connection in list(self.active_connections.items()):
             if exclude_user and user_id == exclude_user:
                 continue
             await connection.send_text(message)
+
+    async def broadcast_typing_indicator(self, user_id: str, username: str, is_typing: bool):
+        """Broadcast typing indicator to all other connected clients"""
+        # Create a copy of items to avoid RuntimeError during iteration
+        for uid, connection in list(self.active_connections.items()):
+            if uid != user_id:  # Don't send to the user who is typing
+                await connection.send_text(
+                    f'{{"type": "typing", "user_id": "{user_id}", "username": "{username}", "is_typing": {str(is_typing).lower()}}}'
+                )
 
     def get_active_users(self) -> List[str]:
         """Get list of currently connected user IDs"""

@@ -98,6 +98,18 @@ class ChatConnection:
             except Exception:
                 pass
 
+    async def send_typing_indicator(self, is_typing: bool):
+        """Send typing indicator to server"""
+        if self.connected and self.websocket:
+            try:
+                typing_data = {
+                    "type": "typing",
+                    "is_typing": is_typing
+                }
+                await self.websocket.send(json.dumps(typing_data))
+            except Exception:
+                pass
+
     async def send_queued_messages(self):
         """Send all queued messages after reconnection"""
         if not self.message_queue:
@@ -172,6 +184,11 @@ class ChatConnection:
 
         elif message_type == "error":
             # Error message from server
+            if self.message_callback:
+                self.message_callback(message_data)
+
+        elif message_type == "typing":
+            # Typing indicator from another user
             if self.message_callback:
                 self.message_callback(message_data)
 

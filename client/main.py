@@ -44,6 +44,10 @@ class ChatClient:
         """Synchronous wrapper for send message callback"""
         self.app.run_worker(self.send_message(message))
 
+    def handle_typing_indicator_sync(self, is_typing: bool):
+        """Synchronous wrapper for typing indicator callback"""
+        self.app.run_worker(self.send_typing_indicator(is_typing))
+
     async def handle_login(self, username: str, password: str, action: str):
         """Handle login or registration"""
         try:
@@ -107,6 +111,9 @@ class ChatClient:
                 key_path = Path.home() / ".terminal-chat" / "encryption.key"
                 chat_screen.add_system_message("End-to-end encryption enabled")
                 chat_screen.add_system_message(f"Key location: {key_path}")
+
+                # Set up typing indicator callback
+                chat_screen.set_typing_indicator_callback(self.handle_typing_indicator_sync)
 
         except ConnectionRefusedError:
             chat_screen = self.app.get_chat_screen()
@@ -217,6 +224,12 @@ class ChatClient:
             error_message = message_data.get("message", "Unknown error")
             chat_screen.add_system_message(f"Error: {error_message}")
 
+        elif message_type == "typing":
+            # Typing indicator from another user
+            username = message_data.get("username", "Someone")
+            is_typing = message_data.get("is_typing", False)
+            chat_screen.update_typing_indicator(username, is_typing)
+
     def handle_status_change(self, status: str):
         """Handle connection status changes"""
         chat_screen = self.app.get_chat_screen()
@@ -238,6 +251,15 @@ class ChatClient:
             status_message = "Offline - message queued"
 
         chat_screen.update_status(status_message)
+
+    async def send_typing_indicator(self, is_typing: bool):
+        """Send typing indicator to server"""
+        if self.connection and self.connection.connected:
+            try:
+                await self.connection.send_typing_indicator(is_typing)
+            except Exception:
+                # Silently fail for typing indicators
+                pass
 
     async def send_message(self, message: str):
         """Handle sending a message"""

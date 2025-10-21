@@ -117,7 +117,7 @@ GET  /api/history?limit=100
 ### Message Flow
 - [x] Send messages from input to server
 - [x] Receive and display messages in real-time
-- [ ] Show typing indicators (optional - skipped)
+- [x] Show typing indicators (implemented with debouncing)
 - [x] Display timestamps in human-readable format
 
 ## Phase 4: Message Persistence (2-3 hours) ✅ COMPLETED
@@ -162,7 +162,7 @@ Client A -> Encrypt(message, shared_key) -> Server -> Store encrypted ->
 - [x] Add notification sounds (system bell on new messages)
 - [x] Implement /commands (/help, /quit, /clear)
 - [ ] Add user presence system (online/offline status) - skipped, active user count is shown
-- [ ] Show "User is typing..." indicators - skipped for simplicity
+- [x] Show "User is typing..." indicators - implemented with debouncing and auto-timeout
 - [x] Display list of online member names in UI
 
 ### Error Handling

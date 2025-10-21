@@ -191,6 +191,21 @@ class ChatScreen(Screen):
         padding: 0 2;
     }
 
+    #typing-indicator {
+        dock: top;
+        height: 0;
+        background: $surface;
+        color: $text-muted;
+        padding: 0 2;
+        text-style: italic;
+        display: none;
+    }
+
+    #typing-indicator.visible {
+        height: 1;
+        display: block;
+    }
+
     #message-display {
         height: 1fr;
         border: solid $primary;
@@ -250,6 +265,11 @@ class ChatScreen(Screen):
             "cyan", "magenta", "yellow", "blue",
             "green", "bright_cyan", "bright_magenta", "bright_yellow"
         ]
+        # Typing indicator tracking
+        self.typing_users = set()  # Set of usernames currently typing
+        self.typing_indicator_callback = None  # Callback to send typing events
+        self.typing_timer = None  # Timer to debounce typing indicator
+        self.is_currently_typing = False  # Track if user is currently indicated as typing
 
     def get_user_color(self, username: str) -> str:
         """Get a consistent color for a username"""
@@ -272,6 +292,9 @@ class ChatScreen(Screen):
         # Status bar
         yield Label("Connecting...", id="status-bar")
 
+        # Typing indicator
+        yield Label("", id="typing-indicator")
+
         # Message display area
         yield RichLog(id="message-display", highlight=True, markup=True, wrap=True)
 
@@ -283,6 +306,10 @@ class ChatScreen(Screen):
         """Handle message submission"""
         message = event.value.strip()
         if message:
+            # Send stop typing indicator before sending message
+            if self.typing_indicator_callback:
+                self.typing_indicator_callback(False)
+
             # Check for commands
             if message.startswith('/'):
                 self.handle_command(message)
@@ -407,6 +434,68 @@ class ChatScreen(Screen):
     def action_quit(self) -> None:
         """Quit the application"""
         self.app.exit()
+
+    def update_typing_indicator(self, username: str, is_typing: bool):
+        """Update typing indicator when users start/stop typing"""
+        if is_typing:
+            self.typing_users.add(username)
+        else:
+            self.typing_users.discard(username)
+
+        # Update the typing indicator label
+        typing_label = self.query_one("#typing-indicator", Label)
+
+        if not self.typing_users:
+            # Hide the typing indicator when no one is typing
+            typing_label.update("")
+            typing_label.remove_class("visible")
+        elif len(self.typing_users) == 1:
+            username = list(self.typing_users)[0]
+            typing_label.update(f"{username} is typing...")
+            typing_label.add_class("visible")
+        elif len(self.typing_users) == 2:
+            users = sorted(self.typing_users)
+            typing_label.update(f"{users[0]} and {users[1]} are typing...")
+            typing_label.add_class("visible")
+        else:
+            typing_label.update(f"{len(self.typing_users)} people are typing...")
+            typing_label.add_class("visible")
+
+    def set_typing_indicator_callback(self, callback: Callable):
+        """Set callback for sending typing indicator events"""
+        self.typing_indicator_callback = callback
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        """Handle input changes to send typing indicator"""
+        if event.input.id != "message-input":
+            return
+
+        # Remove existing timer
+        if self.typing_timer:
+            try:
+                self.remove_timer(self.typing_timer)
+            except:
+                pass  # Timer may have already expired
+
+        if event.value:
+            # Send typing indicator when user starts typing (if not already sent)
+            if not self.is_currently_typing and self.typing_indicator_callback:
+                self.typing_indicator_callback(True)
+                self.is_currently_typing = True
+
+            # Set timer to stop typing indicator after 3 seconds of inactivity
+            self.typing_timer = self.set_timer(3.0, self.stop_typing_indicator)
+        else:
+            # Send stop typing when input is cleared
+            if self.is_currently_typing and self.typing_indicator_callback:
+                self.typing_indicator_callback(False)
+                self.is_currently_typing = False
+
+    def stop_typing_indicator(self) -> None:
+        """Stop typing indicator after timeout"""
+        if self.is_currently_typing and self.typing_indicator_callback:
+            self.typing_indicator_callback(False)
+            self.is_currently_typing = False
 
 
 class ChatApp(App):
