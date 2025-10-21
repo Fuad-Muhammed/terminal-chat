@@ -203,9 +203,14 @@ class ChatClient:
             chat_screen.add_system_message(f"{username} left the chat")
 
         elif message_type == "active_users":
-            # Active users count update
+            # Active users count and list update
             count = message_data.get("count", 0)
-            chat_screen.update_online_users(count)
+            user_info = message_data.get("user_info", [])
+
+            # Extract usernames from user_info
+            usernames = [info.get("username") for info in user_info if info.get("username")]
+
+            chat_screen.update_online_users(count, usernames)
 
         elif message_type == "error":
             # Error message from server

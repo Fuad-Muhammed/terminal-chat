@@ -37,3 +37,16 @@ class ConnectionManager:
     def get_active_users(self) -> List[str]:
         """Get list of currently connected user IDs"""
         return list(self.active_connections.keys())
+
+    def get_active_user_info(self, db_session) -> List[Dict[str, str]]:
+        """Get list of currently connected users with their usernames"""
+        from .models import User
+        user_info = []
+        for user_id in self.active_connections.keys():
+            user = db_session.query(User).filter(User.id == int(user_id)).first()
+            if user:
+                user_info.append({
+                    "user_id": user_id,
+                    "username": user.username
+                })
+        return user_info

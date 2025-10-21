@@ -244,11 +244,13 @@ async def websocket_endpoint(
     })
     await manager.broadcast(join_message, exclude_user=str(user_id))
 
-    # Broadcast updated active users count to ALL users
+    # Broadcast updated active users count and list to ALL users
     active_users = manager.get_active_users()
+    active_user_info = manager.get_active_user_info(db)
     active_users_message = json.dumps({
         "type": "active_users",
         "users": active_users,
+        "user_info": active_user_info,
         "count": len(active_users)
     })
     await manager.broadcast(active_users_message)
@@ -317,11 +319,13 @@ async def websocket_endpoint(
         })
         await manager.broadcast(leave_message)
 
-        # Broadcast updated active users count to remaining users
+        # Broadcast updated active users count and list to remaining users
         active_users = manager.get_active_users()
+        active_user_info = manager.get_active_user_info(db)
         active_users_message = json.dumps({
             "type": "active_users",
             "users": active_users,
+            "user_info": active_user_info,
             "count": len(active_users)
         })
         await manager.broadcast(active_users_message)

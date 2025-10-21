@@ -243,6 +243,7 @@ class ChatScreen(Screen):
         self.username = username
         self.on_send_message = on_send_message
         self.online_users_count = 0
+        self.online_usernames = []
         # User colors for consistent color assignment
         self.user_colors = {}
         self.available_colors = [
@@ -337,11 +338,24 @@ class ChatScreen(Screen):
         status_bar = self.query_one("#status-bar", Label)
         status_bar.update(status)
 
-    def update_online_users(self, count: int):
-        """Update online users count"""
+    def update_online_users(self, count: int, usernames: list = None):
+        """Update online users count and list"""
         self.online_users_count = count
+        self.online_usernames = usernames or []
         online_label = self.query_one("#online-users", Label)
-        online_label.update(f"Online: {count}")
+
+        # Display count and usernames if available
+        if usernames:
+            # Limit the display to show just a few names, then "..."
+            if len(usernames) <= 3:
+                names_str = ", ".join(usernames)
+                online_label.update(f"Online ({count}): {names_str}")
+            else:
+                # Show first 3 names and indicate there are more
+                names_str = ", ".join(usernames[:3])
+                online_label.update(f"Online ({count}): {names_str}...")
+        else:
+            online_label.update(f"Online: {count}")
 
     def handle_command(self, command: str):
         """Handle slash commands"""
@@ -354,6 +368,8 @@ class ChatScreen(Screen):
             self.app.exit()
         elif cmd == "/clear":
             self.clear_messages()
+        elif cmd == "/who":
+            self.show_online_users()
         else:
             self.add_system_message(f"Unknown command: {cmd}. Type /help for available commands.")
 
@@ -362,6 +378,7 @@ class ChatScreen(Screen):
         help_text = [
             "Available Commands:",
             "  /help       - Show this help message",
+            "  /who        - Show list of online users",
             "  /quit       - Exit the application",
             "  /clear      - Clear message history",
             "",
@@ -370,6 +387,16 @@ class ChatScreen(Screen):
         ]
         for line in help_text:
             self.add_system_message(line)
+
+    def show_online_users(self):
+        """Show the list of all online users"""
+        if not self.online_usernames:
+            self.add_system_message(f"Online users ({self.online_users_count}): No user list available")
+        else:
+            self.add_system_message(f"Online users ({self.online_users_count}):")
+            for username in sorted(self.online_usernames):
+                marker = " (you)" if username == self.username else ""
+                self.add_system_message(f"  • {username}{marker}")
 
     def clear_messages(self):
         """Clear the message display"""

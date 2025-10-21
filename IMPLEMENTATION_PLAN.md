@@ -163,6 +163,7 @@ Client A -> Encrypt(message, shared_key) -> Server -> Store encrypted ->
 - [x] Implement /commands (/help, /quit, /clear)
 - [ ] Add user presence system (online/offline status) - skipped, active user count is shown
 - [ ] Show "User is typing..." indicators - skipped for simplicity
+- [x] Display list of online member names in UI
 
 ### Error Handling
 - [x] Graceful handling of network failures
